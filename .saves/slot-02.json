@@ -1,0 +1,142 @@
+{
+    "Schema":  {
+                   "Name":  "voxel-rpg-save",
+                   "Version":  1
+               },
+    "Slot":  2,
+    "SavedAtUtc":  "2026-02-21T13:43:19.3330934Z",
+    "Data":  {
+                 "PlayerPosition":  {
+                                        "X":  12.5,
+                                        "Y":  70.25,
+                                        "Z":  -4.5
+                                    },
+                 "Inventory":  {
+                                   "Slots":  [
+                                                 {
+                                                     "Index":  0,
+                                                     "ItemName":  "Wood",
+                                                     "Count":  8
+                                                 },
+                                                 {
+                                                     "Index":  1,
+                                                     "ItemName":  "Stone",
+                                                     "Count":  3
+                                                 },
+                                                 {
+                                                     "Index":  2,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  3,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  4,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  5,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 }
+                                             ],
+                                   "HotbarSelection":  1
+                               },
+                 "Equipment":  {
+                                   "Slots":  {
+                                                 "OffHand":  "",
+                                                 "Chest":  "",
+                                                 "Legs":  "",
+                                                 "Helmet":  "Leather Cap",
+                                                 "Boots":  "",
+                                                 "MainHand":  "Wooden Sword"
+                                             }
+                               },
+                 "Quests":  {
+                                "Quests":  [
+                                               {
+                                                   "Id":  "q_alpha",
+                                                   "State":  "InProgress",
+                                                   "Objectives":  [
+                                                                      {
+                                                                          "Id":  "obj_1",
+                                                                          "CurrentCount":  2,
+                                                                          "RequiredCount":  3,
+                                                                          "IsCompleted":  false
+                                                                      },
+                                                                      {
+                                                                          "Id":  "obj_2",
+                                                                          "CurrentCount":  1,
+                                                                          "RequiredCount":  1,
+                                                                          "IsCompleted":  true
+                                                                      }
+                                                                  ]
+                                               }
+                                           ],
+                                "Flags":  {
+                                              "met_elder":  true
+                                          }
+                            },
+                 "Stats":  {
+                               "HP":  82.5,
+                               "MaxHP":  120,
+                               "Mana":  31.75,
+                               "MaxMana":  80,
+                               "Stamina":  64,
+                               "MaxStamina":  140,
+                               "IsAlive":  true
+                           },
+                 "Experience":  {
+                                    "XP":  345,
+                                    "Level":  4
+                                },
+                 "Reputation":  {
+                                    "Factions":  [
+                                                     {
+                                                         "Name":  "Village",
+                                                         "Value":  42
+                                                     },
+                                                     {
+                                                         "Name":  "Wardens",
+                                                         "Value":  -12
+                                                     }
+                                                 ]
+                                },
+                 "World":  {
+                               "Seed":  777,
+                               "LoadedChunks":  [
+                                                    {
+                                                        "Key":  "-1,0",
+                                                        "ChunkX":  -1,
+                                                        "ChunkZ":  0,
+                                                        "HasMesh":  false,
+                                                        "MeshIndexCount":  0
+                                                    },
+                                                    {
+                                                        "Key":  "1,2",
+                                                        "ChunkX":  1,
+                                                        "ChunkZ":  2,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  120
+                                                    }
+                                                ]
+                           }
+             },
+    "Validation":  {
+                       "RequiredDomains":  [
+                                               "PlayerPosition",
+                                               "Inventory",
+                                               "Equipment",
+                                               "Quests",
+                                               "Stats",
+                                               "Experience",
+                                               "Reputation",
+                                               "World"
+                                           ],
+                       "WorldRestoreMode":  "SeedAndChunkQueueFallback"
+                   }
+}

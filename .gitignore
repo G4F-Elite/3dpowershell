@@ -1,0 +1,28 @@
+# PowerShell Voxel RPG - .gitignore
+
+# NuGet packages (DLLs in libs/ are tracked intentionally)
+*.nupkg
+
+# Game saves
+saves/
+
+# Logs
+*.log
+
+# Visual Studio
+.vs/
+bin/
+obj/
+*.suo
+*.user
+*.sln.docstates
+
+# PowerShell temp files
+*.tmp
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+.sisyphus

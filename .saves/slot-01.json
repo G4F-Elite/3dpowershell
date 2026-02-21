@@ -1,0 +1,359 @@
+{
+    "Schema":  {
+                   "Name":  "voxel-rpg-save",
+                   "Version":  1
+               },
+    "Slot":  1,
+    "SavedAtUtc":  "2026-02-21T17:23:26.1285237Z",
+    "Data":  {
+                 "PlayerPosition":  {
+                                        "X":  0,
+                                        "Y":  43.0561523,
+                                        "Z":  0
+                                    },
+                 "Inventory":  {
+                                   "Slots":  [
+                                                 {
+                                                     "Index":  0,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  1,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  2,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  3,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  4,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  5,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  6,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  7,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  8,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  9,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  10,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  11,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  12,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  13,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  14,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  15,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  16,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  17,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  18,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  19,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  20,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  21,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  22,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  23,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  24,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  25,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  26,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  27,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  28,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  29,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  30,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  31,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  32,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  33,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  34,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 },
+                                                 {
+                                                     "Index":  35,
+                                                     "ItemName":  "",
+                                                     "Count":  0
+                                                 }
+                                             ],
+                                   "HotbarSelection":  0
+                               },
+                 "Equipment":  {
+                                   "Slots":  {
+                                                 "OffHand":  "",
+                                                 "Chest":  "",
+                                                 "Legs":  "",
+                                                 "Helmet":  "",
+                                                 "Boots":  "",
+                                                 "MainHand":  ""
+                                             }
+                               },
+                 "Quests":  {
+                                "Quests":  [
+
+                                           ],
+                                "Flags":  {
+
+                                          }
+                            },
+                 "Stats":  {
+                               "HP":  100,
+                               "MaxHP":  100,
+                               "Mana":  50,
+                               "MaxMana":  50,
+                               "Stamina":  100,
+                               "MaxStamina":  100,
+                               "IsAlive":  true
+                           },
+                 "Experience":  {
+                                    "XP":  0,
+                                    "Level":  1
+                                },
+                 "Reputation":  {
+                                    "Factions":  [
+
+                                                 ]
+                                },
+                 "World":  {
+                               "Seed":  12345,
+                               "LoadedChunks":  [
+                                                    {
+                                                        "Key":  "-4,1",
+                                                        "ChunkX":  -4,
+                                                        "ChunkZ":  1,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  17304
+                                                    },
+                                                    {
+                                                        "Key":  "-4,3",
+                                                        "ChunkX":  -4,
+                                                        "ChunkZ":  3,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  21720
+                                                    },
+                                                    {
+                                                        "Key":  "-3,-1",
+                                                        "ChunkX":  -3,
+                                                        "ChunkZ":  -1,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  19416
+                                                    },
+                                                    {
+                                                        "Key":  "-3,-4",
+                                                        "ChunkX":  -3,
+                                                        "ChunkZ":  -4,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  22152
+                                                    },
+                                                    {
+                                                        "Key":  "-4,-3",
+                                                        "ChunkX":  -4,
+                                                        "ChunkZ":  -3,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  19104
+                                                    },
+                                                    {
+                                                        "Key":  "-4,-4",
+                                                        "ChunkX":  -4,
+                                                        "ChunkZ":  -4,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  20544
+                                                    },
+                                                    {
+                                                        "Key":  "-3,0",
+                                                        "ChunkX":  -3,
+                                                        "ChunkZ":  0,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  19056
+                                                    },
+                                                    {
+                                                        "Key":  "-3,-2",
+                                                        "ChunkX":  -3,
+                                                        "ChunkZ":  -2,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  18396
+                                                    },
+                                                    {
+                                                        "Key":  "-4,-2",
+                                                        "ChunkX":  -4,
+                                                        "ChunkZ":  -2,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  16848
+                                                    },
+                                                    {
+                                                        "Key":  "-4,2",
+                                                        "ChunkX":  -4,
+                                                        "ChunkZ":  2,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  24708
+                                                    },
+                                                    {
+                                                        "Key":  "-3,-3",
+                                                        "ChunkX":  -3,
+                                                        "ChunkZ":  -3,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  18372
+                                                    },
+                                                    {
+                                                        "Key":  "-3,1",
+                                                        "ChunkX":  -3,
+                                                        "ChunkZ":  1,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  17832
+                                                    },
+                                                    {
+                                                        "Key":  "-4,4",
+                                                        "ChunkX":  -4,
+                                                        "ChunkZ":  4,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  19884
+                                                    },
+                                                    {
+                                                        "Key":  "-4,-1",
+                                                        "ChunkX":  -4,
+                                                        "ChunkZ":  -1,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  18564
+                                                    },
+                                                    {
+                                                        "Key":  "-4,0",
+                                                        "ChunkX":  -4,
+                                                        "ChunkZ":  0,
+                                                        "HasMesh":  true,
+                                                        "MeshIndexCount":  18864
+                                                    }
+                                                ]
+                           }
+             },
+    "Validation":  {
+                       "RequiredDomains":  [
+                                               "PlayerPosition",
+                                               "Inventory",
+                                               "Equipment",
+                                               "Quests",
+                                               "Stats",
+                                               "Experience",
+                                               "Reputation",
+                                               "World"
+                                           ],
+                       "WorldRestoreMode":  "SeedAndChunkQueueFallback"
+                   }
+}

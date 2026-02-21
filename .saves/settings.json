@@ -1,0 +1,38 @@
+{
+    "Schema":  {
+                   "Name":  "voxel-rpg-settings",
+                   "Version":  1
+               },
+    "UpdatedAtUtc":  "2026-02-21T15:36:50.2800431Z",
+    "Data":  {
+                 "Video":  {
+                               "Resolution":  "1024x768",
+                               "VSync":  true,
+                               "RenderDistance":  4
+                           },
+                 "Controls":  {
+                                  "KeyBindings":  {
+                                                      "MoveForward":  "W",
+                                                      "MoveBackward":  "S",
+                                                      "MoveLeft":  "A",
+                                                      "MoveRight":  "D",
+                                                      "Jump":  "Space",
+                                                      "Sprint":  "ShiftKey",
+                                                      "PauseMenu":  "Escape",
+                                                      "MenuAccept":  "Return",
+                                                      "MenuUp":  "Up",
+                                                      "MenuDown":  "Down",
+                                                      "MenuLeft":  "Left",
+                                                      "MenuRight":  "Right",
+                                                      "Inventory":  "E",
+                                                      "Attack":  "F"
+                                                  }
+                              },
+                 "Audio":  {
+                               "MasterVolume":  85,
+                               "MusicVolume":  70,
+                               "EffectsVolume":  80,
+                               "AudioBackendAvailable":  false
+                           }
+             }
+}
