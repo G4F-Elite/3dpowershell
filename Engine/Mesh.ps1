@@ -1,5 +1,5 @@
 # ============================================================================
-# Engine/Mesh.ps1 — Mesh Creation & Rendering Pipeline
+# Engine/Mesh.ps1 - Mesh Creation & Rendering Pipeline
 # ============================================================================
 # Creates VBO/VAO/EBO GPU resources for rendering textured cubes.
 # Provides New-CubeMesh (creates a textured cube), Draw-Mesh (renders it),
@@ -72,7 +72,7 @@ function New-CubeMesh {
         $vertList.Add($normal[0]) | Out-Null; $vertList.Add($normal[1]) | Out-Null; $vertList.Add($normal[2]) | Out-Null
     }
 
-    # --- Front face (south, +Z) — normal (0, 0, 1) ---
+    # --- Front face (south, +Z) - normal (0, 0, 1) ---
     $uvSouth = Get-BlockFaceUV -Atlas $atlas -BlockType $BlockType -Face 'south'
     Add-FaceVertices $verts @(
         @([float]-0.5, [float]-0.5, [float] 0.5),
@@ -81,7 +81,7 @@ function New-CubeMesh {
         @([float]-0.5, [float] 0.5, [float] 0.5)
     ) $uvSouth @([float]0, [float]0, [float]1)
 
-    # --- Back face (north, -Z) — normal (0, 0, -1) ---
+    # --- Back face (north, -Z) - normal (0, 0, -1) ---
     $uvNorth = Get-BlockFaceUV -Atlas $atlas -BlockType $BlockType -Face 'north'
     Add-FaceVertices $verts @(
         @([float] 0.5, [float]-0.5, [float]-0.5),
@@ -90,7 +90,7 @@ function New-CubeMesh {
         @([float] 0.5, [float] 0.5, [float]-0.5)
     ) $uvNorth @([float]0, [float]0, [float]-1)
 
-    # --- Right face (east, +X) — normal (1, 0, 0) ---
+    # --- Right face (east, +X) - normal (1, 0, 0) ---
     $uvEast = Get-BlockFaceUV -Atlas $atlas -BlockType $BlockType -Face 'east'
     Add-FaceVertices $verts @(
         @([float] 0.5, [float]-0.5, [float] 0.5),
@@ -99,7 +99,7 @@ function New-CubeMesh {
         @([float] 0.5, [float] 0.5, [float] 0.5)
     ) $uvEast @([float]1, [float]0, [float]0)
 
-    # --- Left face (west, -X) — normal (-1, 0, 0) ---
+    # --- Left face (west, -X) - normal (-1, 0, 0) ---
     $uvWest = Get-BlockFaceUV -Atlas $atlas -BlockType $BlockType -Face 'west'
     Add-FaceVertices $verts @(
         @([float]-0.5, [float]-0.5, [float]-0.5),
@@ -108,7 +108,7 @@ function New-CubeMesh {
         @([float]-0.5, [float] 0.5, [float]-0.5)
     ) $uvWest @([float]-1, [float]0, [float]0)
 
-    # --- Top face (top, +Y) — normal (0, 1, 0) ---
+    # --- Top face (top, +Y) - normal (0, 1, 0) ---
     $uvTop = Get-BlockFaceUV -Atlas $atlas -BlockType $BlockType -Face 'top'
     Add-FaceVertices $verts @(
         @([float]-0.5, [float] 0.5, [float] 0.5),
@@ -117,7 +117,7 @@ function New-CubeMesh {
         @([float]-0.5, [float] 0.5, [float]-0.5)
     ) $uvTop @([float]0, [float]1, [float]0)
 
-    # --- Bottom face (bottom, -Y) — normal (0, -1, 0) ---
+    # --- Bottom face (bottom, -Y) - normal (0, -1, 0) ---
     $uvBottom = Get-BlockFaceUV -Atlas $atlas -BlockType $BlockType -Face 'bottom'
     Add-FaceVertices $verts @(
         @([float]-0.5, [float]-0.5, [float]-0.5),
@@ -191,7 +191,7 @@ function New-CubeMesh {
     # Stride = 8 floats * 4 bytes = 32 bytes
     [int]$stride = 32
 
-    # aPosition (vec3) — offset 0
+    # aPosition (vec3) - offset 0
     $posLoc = [OpenGL.Gl]::GetAttribLocation($program, 'aPosition')
     if ($posLoc -ge 0) {
         [OpenGL.Gl]::EnableVertexAttribArray([uint32]$posLoc)
@@ -205,7 +205,7 @@ function New-CubeMesh {
         )
     }
 
-    # aTexCoord (vec2) — offset 12 bytes (3 floats * 4)
+    # aTexCoord (vec2) - offset 12 bytes (3 floats * 4)
     $texLoc = [OpenGL.Gl]::GetAttribLocation($program, 'aTexCoord')
     if ($texLoc -ge 0) {
         [OpenGL.Gl]::EnableVertexAttribArray([uint32]$texLoc)
@@ -219,7 +219,7 @@ function New-CubeMesh {
         )
     }
 
-    # aNormal (vec3) — offset 20 bytes (5 floats * 4)
+    # aNormal (vec3) - offset 20 bytes (5 floats * 4)
     $normLoc = [OpenGL.Gl]::GetAttribLocation($program, 'aNormal')
     if ($normLoc -ge 0) {
         [OpenGL.Gl]::EnableVertexAttribArray([uint32]$normLoc)
@@ -306,7 +306,7 @@ function Initialize-Renderer {
     .DESCRIPTION
         MUST be called when a GL context is active (e.g. from a render
         callback or ContextCreated event). Do NOT call before Application.Run().
-        Uses lazy init — called automatically on first render frame.
+        Uses lazy init - called automatically on first render frame.
     #>
 
     if ($script:RendererInitialized) {
@@ -323,7 +323,7 @@ function Initialize-Renderer {
     $script:TestCubeMesh = New-CubeMesh -BlockType 'grass'
 
     $script:RendererInitialized = $true
-    Write-Host "[Mesh] Renderer initialized — test cube ready." -ForegroundColor Green
+    Write-Host "[Mesh] Renderer initialized - test cube ready." -ForegroundColor Green
 }
 
 function Invoke-TestCubeRender {
@@ -370,7 +370,7 @@ function Invoke-TestCubeRender {
     Bind-Texture -Handle $atlas.Handle -Unit 0
     Set-ShaderUniform1i -Program $program -Name 'uTexture' -Value 0
 
-    # Set lighting uniforms — directional sunlight from upper-right-front
+    # Set lighting uniforms - directional sunlight from upper-right-front
     Set-ShaderUniform3f -Program $program -Name 'uLightDir' -X 0.5 -Y 0.8 -Z 0.3
     Set-ShaderUniform1f -Program $program -Name 'uAmbient'  -Value 0.3
 

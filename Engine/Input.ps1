@@ -17,6 +17,11 @@ $script:MouseDelta = [PSCustomObject]@{ X = 0; Y = 0 }
 $script:MouseCaptured = $false
 $script:MouseCenterX = 0                         # Screen-space center for re-centering
 $script:MouseCenterY = 0
+$script:InputFrameId = [int]0
+$script:MouseButtonPressedFrame = @([int]-1, [int]-1, [int]-1)
+$script:MouseButtonReleasedFrame = @([int]-1, [int]-1, [int]-1)
+$script:KeyPressedFrame = @{}
+$script:KeyReleasedFrame = @{}
 
 # ============================================================================
 # Public Functions
@@ -41,6 +46,8 @@ function Initialize-Input {
 
     # Enable KeyPreview so the Form captures key events before child controls
     $form.KeyPreview = $true
+    $form.ActiveControl = $control
+    $control.Focus() | Out-Null
 
     # --- Keyboard Events (on Form for reliable capture) ---
     $form.Add_KeyDown({
@@ -49,6 +56,7 @@ function Initialize-Input {
         if (-not $script:KeyStates.ContainsKey($key) -or $script:KeyStates[$key] -eq 'idle' -or $script:KeyStates[$key] -eq 'released') {
             $script:KeyStates[$key] = 'pressed'
         }
+        $script:KeyPressedFrame[$key] = [int]($script:InputFrameId + 1)
         $e.Handled = $true
     })
 
@@ -56,6 +64,7 @@ function Initialize-Input {
         param($sender, $e)
         $key = $e.KeyCode
         $script:KeyStates[$key] = 'released'
+        $script:KeyReleasedFrame[$key] = [int]($script:InputFrameId + 1)
         $e.Handled = $true
     })
 
@@ -69,18 +78,18 @@ function Initialize-Input {
     $control.Add_MouseDown({
         param($sender, $e)
         switch ($e.Button) {
-            ([System.Windows.Forms.MouseButtons]::Left)   { $script:MouseButtons[0] = 'pressed' }
-            ([System.Windows.Forms.MouseButtons]::Right)  { $script:MouseButtons[1] = 'pressed' }
-            ([System.Windows.Forms.MouseButtons]::Middle) { $script:MouseButtons[2] = 'pressed' }
+            ([System.Windows.Forms.MouseButtons]::Left)   { $script:MouseButtons[0] = 'pressed'; $script:MouseButtonPressedFrame[0] = [int]($script:InputFrameId + 1) }
+            ([System.Windows.Forms.MouseButtons]::Right)  { $script:MouseButtons[1] = 'pressed'; $script:MouseButtonPressedFrame[1] = [int]($script:InputFrameId + 1) }
+            ([System.Windows.Forms.MouseButtons]::Middle) { $script:MouseButtons[2] = 'pressed'; $script:MouseButtonPressedFrame[2] = [int]($script:InputFrameId + 1) }
         }
     })
 
     $control.Add_MouseUp({
         param($sender, $e)
         switch ($e.Button) {
-            ([System.Windows.Forms.MouseButtons]::Left)   { $script:MouseButtons[0] = 'released' }
-            ([System.Windows.Forms.MouseButtons]::Right)  { $script:MouseButtons[1] = 'released' }
-            ([System.Windows.Forms.MouseButtons]::Middle) { $script:MouseButtons[2] = 'released' }
+            ([System.Windows.Forms.MouseButtons]::Left)   { $script:MouseButtons[0] = 'released'; $script:MouseButtonReleasedFrame[0] = [int]($script:InputFrameId + 1) }
+            ([System.Windows.Forms.MouseButtons]::Right)  { $script:MouseButtons[1] = 'released'; $script:MouseButtonReleasedFrame[1] = [int]($script:InputFrameId + 1) }
+            ([System.Windows.Forms.MouseButtons]::Middle) { $script:MouseButtons[2] = 'released'; $script:MouseButtonReleasedFrame[2] = [int]($script:InputFrameId + 1) }
         }
     })
 
@@ -96,6 +105,8 @@ function Update-Input {
         Per-frame state transitions. Called automatically via update callback.
     #>
     param($dt)
+
+    $script:InputFrameId = [int]($script:InputFrameId + 1)
 
     # --- Keyboard: pressed->held, released->idle ---
     $keysToUpdate = @($script:KeyStates.Keys)
@@ -162,7 +173,9 @@ function Get-KeyDown {
         Returns $true on the FIRST frame a key is pressed.
     #>
     param([System.Windows.Forms.Keys]$Key)
-    return ($script:KeyStates.ContainsKey($Key) -and $script:KeyStates[$Key] -eq 'pressed')
+    if (-not $script:KeyStates.ContainsKey($Key)) { return $false }
+    if (-not $script:KeyPressedFrame.ContainsKey($Key)) { return $false }
+    return ([int]$script:KeyPressedFrame[$Key] -eq [int]$script:InputFrameId)
 }
 
 function Get-Key {
@@ -182,7 +195,9 @@ function Get-KeyUp {
         Returns $true on the FIRST frame a key is released.
     #>
     param([System.Windows.Forms.Keys]$Key)
-    return ($script:KeyStates.ContainsKey($Key) -and $script:KeyStates[$Key] -eq 'released')
+    if (-not $script:KeyStates.ContainsKey($Key)) { return $false }
+    if (-not $script:KeyReleasedFrame.ContainsKey($Key)) { return $false }
+    return ([int]$script:KeyReleasedFrame[$Key] -eq [int]$script:InputFrameId)
 }
 
 # ============================================================================
@@ -223,7 +238,15 @@ function Get-MouseButtonDown {
     #>
     param([int]$Button = 0)
     if ($Button -lt 0 -or $Button -gt 2) { return $false }
-    return ($script:MouseButtons[$Button] -eq 'pressed')
+    return ([int]$script:MouseButtonPressedFrame[$Button] -eq [int]$script:InputFrameId)
+}
+
+function Get-MouseCaptured {
+    <#
+    .SYNOPSIS
+        Returns current mouse capture (lock) state.
+    #>
+    return [bool]$script:MouseCaptured
 }
 
 function Set-MouseCapture {
@@ -236,6 +259,16 @@ function Set-MouseCapture {
     #>
     param([bool]$Captured)
 
+    if ($script:MouseCaptured -eq $Captured) {
+        if ($Captured) {
+            $control = Get-GlControl
+            if ($control) {
+                $control.Focus() | Out-Null
+            }
+        }
+        return
+    }
+
     $script:MouseCaptured = $Captured
 
     if ($Captured) {
@@ -243,11 +276,27 @@ function Set-MouseCapture {
 
         # Center cursor on the GlControl
         $control = Get-GlControl
+        $form = Get-MainForm
+        if ($form) {
+            try { $form.Activate() | Out-Null } catch {}
+        }
         if ($control) {
+            $control.Focus() | Out-Null
+            try { $control.Capture = $true } catch {}
+            try { $control.Cursor = [System.Windows.Forms.Cursors]::None } catch {}
             $screenPt = $control.PointToScreen([System.Drawing.Point]::new(
                 [int]($control.Width / 2),
                 [int]($control.Height / 2)
             ))
+
+            $topLeft = $control.PointToScreen([System.Drawing.Point]::new(0, 0))
+            [System.Windows.Forms.Cursor]::Clip = [System.Drawing.Rectangle]::new(
+                [int]$topLeft.X,
+                [int]$topLeft.Y,
+                [int][Math]::Max(1, $control.Width),
+                [int][Math]::Max(1, $control.Height)
+            )
+
             $script:MouseCenterX = $screenPt.X
             $script:MouseCenterY = $screenPt.Y
             [System.Windows.Forms.Cursor]::Position = [System.Drawing.Point]::new(
@@ -260,6 +309,12 @@ function Set-MouseCapture {
         $script:MouseDelta = [PSCustomObject]@{ X = 0; Y = 0 }
         Write-Host "[Input] Mouse captured." -ForegroundColor DarkGray
     } else {
+        [System.Windows.Forms.Cursor]::Clip = [System.Drawing.Rectangle]::Empty
+        $control = Get-GlControl
+        if ($control) {
+            try { $control.Capture = $false } catch {}
+            try { $control.Cursor = [System.Windows.Forms.Cursors]::Default } catch {}
+        }
         [System.Windows.Forms.Cursor]::Show()
         $script:MouseDelta = [PSCustomObject]@{ X = 0; Y = 0 }
         Write-Host "[Input] Mouse released." -ForegroundColor DarkGray

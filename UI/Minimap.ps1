@@ -1384,6 +1384,7 @@ function Render-Minimap {
     [int]$npcMarkersDrawn = 0
     [int]$questMarkersDrawn = 0
 
+    Begin-HUDBatch
     try {
         [float]$border = [float][Math]::Max(1.0, [Math]::Round([float]$state.Layout.Scale))
 
@@ -1487,6 +1488,9 @@ function Render-Minimap {
             QuestMarkersDrawn = [int]$questMarkersDrawn
             ZoomLevel = [float](Get-MinimapZoomLevelInternal)
         }
+    }
+    finally {
+        End-HUDBatch
     }
 
     $script:MinimapReadModel.LastRender = $script:MinimapLastRender

@@ -20,6 +20,9 @@ obj/
 # PowerShell temp files
 *.tmp
 
+# Claude Code temp directories
+tmpclaude-*
+
 # OS files
 Thumbs.db
 Desktop.ini

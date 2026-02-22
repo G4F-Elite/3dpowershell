@@ -5,6 +5,10 @@
 # Uses OpenGL.Net for rendering via WinForms GlControl.
 # ============================================================================
 
+param(
+    [int]$AutoCloseSeconds = 0
+)
+
 $ErrorActionPreference = 'Stop'
 
 # Determine script root (works in PS 5.1 and PS 7+)
@@ -50,6 +54,7 @@ Add-Type -AssemblyName System.Drawing
 . "$PSScriptRoot\Engine\Camera.ps1"
 . "$PSScriptRoot\Engine\Physics.ps1"
 . "$PSScriptRoot\Engine\Raycast.ps1"
+. "$PSScriptRoot\Engine\Performance.ps1"
 
 # --- Dot-source World Modules ---
 . "$PSScriptRoot\World\Chunk.ps1"
@@ -75,14 +80,23 @@ Add-Type -AssemblyName System.Drawing
 . "$PSScriptRoot\Game\Tools.ps1"
 . "$PSScriptRoot\Game\Combat.ps1"
 . "$PSScriptRoot\Game\Experience.ps1"
-# TODO: . "$PSScriptRoot\Game\GameLoop.ps1"
+. "$PSScriptRoot\Game\Enemy.ps1"
+. "$PSScriptRoot\Game\Enemies.ps1"
+. "$PSScriptRoot\Game\NPC.ps1"
+. "$PSScriptRoot\Game\Dialog.ps1"
+. "$PSScriptRoot\Game\Quest.ps1"
+. "$PSScriptRoot\Game\Death.ps1"
+. "$PSScriptRoot\Game\Reputation.ps1"
+. "$PSScriptRoot\Game\Damage.ps1"
+. "$PSScriptRoot\Game\LevelUp.ps1"
+. "$PSScriptRoot\Game\Rewards.ps1"
+. "$PSScriptRoot\Game\Skills.ps1"
+. "$PSScriptRoot\Game\SkillEffects.ps1"
+. "$PSScriptRoot\Game\StatProgression.ps1"
+. "$PSScriptRoot\Data\Quests.ps1"
 
-# --- Dot-source UI Modules ---
+# --- Dot-source UI Modules (only Menu + HUD dependency) ---
 . "$PSScriptRoot\UI\HUD.ps1"
-. "$PSScriptRoot\UI\StatusBar.ps1"
-. "$PSScriptRoot\UI\InventoryUI.ps1"
-. "$PSScriptRoot\UI\QuestTracker.ps1"
-. "$PSScriptRoot\UI\Minimap.ps1"
 . "$PSScriptRoot\UI\Menu.ps1"
 
 # --- Engine Ready ---
@@ -94,6 +108,7 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
 # --- Initialize and Start ---
+Initialize-Performance
 Initialize-GameWindow
 Register-AutoSaveOnExit -Slot 1 | Out-Null
 Initialize-Settings -ApplyRuntime | Out-Null
@@ -110,11 +125,10 @@ Initialize-Equipment
 Initialize-Crafting
 Initialize-Tools
 Initialize-Combat
-Initialize-StatusBar
-Initialize-InventoryUI
-Initialize-QuestTracker
-Initialize-Minimap
+Initialize-ExperienceSystem
+Initialize-QuestSystem
+Initialize-ReputationSystem
 Initialize-Menu
 
 # --- Start Game Loop (blocks until window closes) ---
-Start-GameLoop
+Start-GameLoop -AutoCloseSeconds $AutoCloseSeconds

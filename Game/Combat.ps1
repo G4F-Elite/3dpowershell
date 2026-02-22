@@ -32,6 +32,29 @@ $script:PlayerAnimationProxy       = $null             # Optional animation targ
 $script:CombatEnemyMesh            = $null             # Shared cube mesh for enemy rendering
 $script:CombatRendererReady        = $false            # Lazy-init flag for GL resources
 
+function Resolve-CombatKeyBinding {
+    param(
+        [Parameter(Mandatory = $true)][string]$Action,
+        [Parameter(Mandatory = $true)][System.Windows.Forms.Keys]$Fallback
+    )
+
+    if (Get-Command -Name Get-KeyBinding -ErrorAction SilentlyContinue) {
+        try {
+            [string]$bindingName = [string](Get-KeyBinding -Action $Action -Default ([string]$Fallback))
+            if (-not [string]::IsNullOrWhiteSpace($bindingName)) {
+                $parsed = [System.Enum]::Parse([System.Windows.Forms.Keys], $bindingName, $true)
+                if ($null -ne $parsed) {
+                    return [System.Windows.Forms.Keys]$parsed
+                }
+            }
+        }
+        catch {
+        }
+    }
+
+    return [System.Windows.Forms.Keys]$Fallback
+}
+
 # ============================================================================
 # Initialize-Combat - Reset state and register callbacks
 # ============================================================================
@@ -542,6 +565,8 @@ function Update-Combat {
     #>
     param($dt)
 
+    [System.Windows.Forms.Keys]$attackKey = Resolve-CombatKeyBinding -Action 'Attack' -Fallback ([System.Windows.Forms.Keys]::F)
+
     if ($dt -gt 0.1) { $dt = 0.1 }
 
     # --- Update player combat state machine ---
@@ -569,7 +594,7 @@ function Update-Combat {
     }
 
     # --- Player attack input: F key triggers melee attack ---
-    if (Get-KeyDown ([System.Windows.Forms.Keys]::F)) {
+    if (Get-KeyDown $attackKey) {
         Invoke-PlayerAttack | Out-Null
     }
 

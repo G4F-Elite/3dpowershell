@@ -25,6 +25,29 @@ $script:PlayerOnGround     = $false                           # Ground contact f
 $script:PlayerState        = 'Falling'                        # Walking, Falling, Jumping, Swimming
 $script:PlayerFlyMode      = $false                           # Debug fly toggle (F3)
 
+function Resolve-PlayerKeyBinding {
+    param(
+        [Parameter(Mandatory = $true)][string]$Action,
+        [Parameter(Mandatory = $true)][System.Windows.Forms.Keys]$Fallback
+    )
+
+    if (Get-Command -Name Get-KeyBinding -ErrorAction SilentlyContinue) {
+        try {
+            [string]$bindingName = [string](Get-KeyBinding -Action $Action -Default ([string]$Fallback))
+            if (-not [string]::IsNullOrWhiteSpace($bindingName)) {
+                $parsed = [System.Enum]::Parse([System.Windows.Forms.Keys], $bindingName, $true)
+                if ($null -ne $parsed) {
+                    return [System.Windows.Forms.Keys]$parsed
+                }
+            }
+        }
+        catch {
+        }
+    }
+
+    return [System.Windows.Forms.Keys]$Fallback
+}
+
 # ============================================================================
 # Initialize-Player - Set up player and register update callback
 # ============================================================================
@@ -63,6 +86,19 @@ function Update-Player {
     # Clamp dt to prevent physics explosions on lag spikes
     if ($dt -gt 0.1) { $dt = 0.1 }
 
+    # --- Wait for spawn chunk before applying physics ---
+    [int]$spawnChunkX = [Math]::Floor($script:PlayerPosition.X / 16.0)
+    [int]$spawnChunkZ = [Math]::Floor($script:PlayerPosition.Z / 16.0)
+    if (-not $script:WorldChunks.ContainsKey("$spawnChunkX,$spawnChunkZ")) {
+        # Chunk not loaded yet — hold player in place, sync camera only
+        $eyePos = New-Vector3 `
+            -X $script:PlayerPosition.X `
+            -Y ($script:PlayerPosition.Y + $script:PlayerEyeOffset) `
+            -Z $script:PlayerPosition.Z
+        Set-CameraPosition -Position $eyePos
+        return
+    }
+
     # --- F3 toggles fly mode ---
     if (Get-KeyDown ([System.Windows.Forms.Keys]::F3)) {
         $script:PlayerFlyMode = -not $script:PlayerFlyMode
@@ -95,6 +131,13 @@ function Update-Player {
 function Update-PlayerNormal {
     param($dt)
 
+    [System.Windows.Forms.Keys]$moveForwardKey = Resolve-PlayerKeyBinding -Action 'MoveForward' -Fallback ([System.Windows.Forms.Keys]::W)
+    [System.Windows.Forms.Keys]$moveBackwardKey = Resolve-PlayerKeyBinding -Action 'MoveBackward' -Fallback ([System.Windows.Forms.Keys]::S)
+    [System.Windows.Forms.Keys]$moveLeftKey = Resolve-PlayerKeyBinding -Action 'MoveLeft' -Fallback ([System.Windows.Forms.Keys]::A)
+    [System.Windows.Forms.Keys]$moveRightKey = Resolve-PlayerKeyBinding -Action 'MoveRight' -Fallback ([System.Windows.Forms.Keys]::D)
+    [System.Windows.Forms.Keys]$sprintKey = Resolve-PlayerKeyBinding -Action 'Sprint' -Fallback ([System.Windows.Forms.Keys]::ShiftKey)
+    [System.Windows.Forms.Keys]$jumpKey = Resolve-PlayerKeyBinding -Action 'Jump' -Fallback ([System.Windows.Forms.Keys]::Space)
+
     $yaw = $script:CameraYaw
 
     # --- Horizontal movement direction from camera yaw ---
@@ -107,16 +150,16 @@ function Update-PlayerNormal {
 
     $moveDir = New-Vector3
 
-    if (Get-Key ([System.Windows.Forms.Keys]::W)) {
+    if (Get-Key $moveForwardKey) {
         $moveDir = Vector3-Add $moveDir $forward
     }
-    if (Get-Key ([System.Windows.Forms.Keys]::S)) {
+    if (Get-Key $moveBackwardKey) {
         $moveDir = Vector3-Subtract $moveDir $forward
     }
-    if (Get-Key ([System.Windows.Forms.Keys]::A)) {
+    if (Get-Key $moveLeftKey) {
         $moveDir = Vector3-Subtract $moveDir $right
     }
-    if (Get-Key ([System.Windows.Forms.Keys]::D)) {
+    if (Get-Key $moveRightKey) {
         $moveDir = Vector3-Add $moveDir $right
     }
 
@@ -128,7 +171,7 @@ function Update-PlayerNormal {
 
     # Determine speed (sprint with Shift)
     $speed = $script:PlayerMoveSpeed
-    if (Get-Key ([System.Windows.Forms.Keys]::ShiftKey)) {
+    if (Get-Key $sprintKey) {
         $speed = $speed * $script:PlayerSprintMult
     }
 
@@ -140,7 +183,7 @@ function Update-PlayerNormal {
     $vVelY = $script:PlayerVelocity.Y
 
     # Jump
-    if ($script:PlayerOnGround -and (Get-Key ([System.Windows.Forms.Keys]::Space))) {
+    if ($script:PlayerOnGround -and (Get-Key $jumpKey)) {
         $vVelY = $script:PlayerJumpVelocity
         $script:PlayerOnGround = $false
         $script:PlayerState = 'Jumping'
@@ -210,6 +253,13 @@ function Update-PlayerNormal {
 function Update-PlayerFlyMode {
     param($dt)
 
+    [System.Windows.Forms.Keys]$moveForwardKey = Resolve-PlayerKeyBinding -Action 'MoveForward' -Fallback ([System.Windows.Forms.Keys]::W)
+    [System.Windows.Forms.Keys]$moveBackwardKey = Resolve-PlayerKeyBinding -Action 'MoveBackward' -Fallback ([System.Windows.Forms.Keys]::S)
+    [System.Windows.Forms.Keys]$moveLeftKey = Resolve-PlayerKeyBinding -Action 'MoveLeft' -Fallback ([System.Windows.Forms.Keys]::A)
+    [System.Windows.Forms.Keys]$moveRightKey = Resolve-PlayerKeyBinding -Action 'MoveRight' -Fallback ([System.Windows.Forms.Keys]::D)
+    [System.Windows.Forms.Keys]$jumpKey = Resolve-PlayerKeyBinding -Action 'Jump' -Fallback ([System.Windows.Forms.Keys]::Space)
+    [System.Windows.Forms.Keys]$sprintKey = Resolve-PlayerKeyBinding -Action 'Sprint' -Fallback ([System.Windows.Forms.Keys]::ShiftKey)
+
     $yaw = $script:CameraYaw
 
     $forwardX = -[Math]::Sin($yaw)
@@ -221,22 +271,22 @@ function Update-PlayerFlyMode {
 
     $moveDir = New-Vector3
 
-    if (Get-Key ([System.Windows.Forms.Keys]::W)) {
+    if (Get-Key $moveForwardKey) {
         $moveDir = Vector3-Add $moveDir $forward
     }
-    if (Get-Key ([System.Windows.Forms.Keys]::S)) {
+    if (Get-Key $moveBackwardKey) {
         $moveDir = Vector3-Subtract $moveDir $forward
     }
-    if (Get-Key ([System.Windows.Forms.Keys]::A)) {
+    if (Get-Key $moveLeftKey) {
         $moveDir = Vector3-Subtract $moveDir $right
     }
-    if (Get-Key ([System.Windows.Forms.Keys]::D)) {
+    if (Get-Key $moveRightKey) {
         $moveDir = Vector3-Add $moveDir $right
     }
-    if (Get-Key ([System.Windows.Forms.Keys]::Space)) {
+    if (Get-Key $jumpKey) {
         $moveDir = Vector3-Add $moveDir $worldUp
     }
-    if (Get-Key ([System.Windows.Forms.Keys]::ShiftKey)) {
+    if (Get-Key $sprintKey) {
         $moveDir = Vector3-Subtract $moveDir $worldUp
     }
 

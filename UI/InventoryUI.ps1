@@ -1647,6 +1647,8 @@ function Render-InventoryUI {
     [float]$border = [float][Math]::Max(1.0, [Math]::Round($scale))
 
     [int]$drawCount = 0
+    Begin-HUDBatch
+    try {
 
     Draw-HUDRect -X $panelX -Y $panelY -Width $panelW -Height $panelH -Z $z -R ([float]$script:InventoryUITheme.Panel.R) -G ([float]$script:InventoryUITheme.Panel.G) -B ([float]$script:InventoryUITheme.Panel.B) -A ([float]$script:InventoryUITheme.Panel.A)
     $drawCount++
@@ -1740,16 +1742,30 @@ function Render-InventoryUI {
 
     [bool]$dragVisible = ($dragDraws -gt 0)
 
-    $script:InventoryUILastRender = [PSCustomObject]@{
-        Mode = 'HUDOverlay'
-        Rendered = $true
-        Reason = 'Rendered'
-        DrawCallEstimate = [int]$drawCount
-        TooltipVisible = [bool]$tooltipVisible
-        DragVisualVisible = [bool]$dragVisible
-    }
+        $script:InventoryUILastRender = [PSCustomObject]@{
+            Mode = 'HUDOverlay'
+            Rendered = $true
+            Reason = 'Rendered'
+            DrawCallEstimate = [int]$drawCount
+            TooltipVisible = [bool]$tooltipVisible
+            DragVisualVisible = [bool]$dragVisible
+        }
 
-    $script:InventoryUIReadModel.LastRender = $script:InventoryUILastRender
+        $script:InventoryUIReadModel.LastRender = $script:InventoryUILastRender
+    }
+    catch {
+        $script:InventoryUILastRender = [PSCustomObject]@{
+            Mode = 'DrawFailed'
+            Rendered = $false
+            Reason = [string]$_.Exception.Message
+            DrawCallEstimate = [int]$drawCount
+            TooltipVisible = $false
+            DragVisualVisible = $false
+        }
+    }
+    finally {
+        End-HUDBatch
+    }
 }
 
 function Get-InventoryUIState {

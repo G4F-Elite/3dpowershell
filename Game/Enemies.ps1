@@ -43,8 +43,8 @@ function Initialize-EnemyTypeDefinitions {
     $script:EnemyTypeDefinitions['zombie'] = [PSCustomObject]@{
         Type              = 'Zombie'
         NamePrefix        = 'Zombie'
-        HP                = [float]52
-        Damage            = [int]6
+        HP                = [float]45
+        Damage            = [int]7
         Defense           = [int]2
         DetectRange       = [float]11
         AttackRange       = [float]1.8
@@ -65,12 +65,12 @@ function Initialize-EnemyTypeDefinitions {
     $script:EnemyTypeDefinitions['skeleton'] = [PSCustomObject]@{
         Type              = 'Skeleton'
         NamePrefix        = 'Skeleton'
-        HP                = [float]30
-        Damage            = [int]5
+        HP                = [float]28
+        Damage            = [int]6
         Defense           = [int]1
         DetectRange       = [float]16
         AttackRange       = [float]7.0
-        AttackCooldownMax = [float]1.20
+        AttackCooldownMax = [float]1.30
         MoveSpeed         = [float]2.60
         PatrolRadius      = [float]10
         FleeThreshold     = [float]0.25
@@ -87,8 +87,8 @@ function Initialize-EnemyTypeDefinitions {
     $script:EnemyTypeDefinitions['spider'] = [PSCustomObject]@{
         Type              = 'Spider'
         NamePrefix        = 'Spider'
-        HP                = [float]24
-        Damage            = [int]4
+        HP                = [float]22
+        Damage            = [int]5
         Defense           = [int]0
         DetectRange       = [float]13
         AttackRange       = [float]1.6

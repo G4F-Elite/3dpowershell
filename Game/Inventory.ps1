@@ -17,6 +17,29 @@ $script:HotbarSelection = [int]0             # Currently selected hotbar slot (0
 $script:InventoryOpen = $false               # Whether inventory UI is open
 $script:DefaultMaxStackSize = [int]64        # Default max stack size for all items
 
+function Resolve-InventoryKeyBinding {
+    param(
+        [Parameter(Mandatory = $true)][string]$Action,
+        [Parameter(Mandatory = $true)][System.Windows.Forms.Keys]$Fallback
+    )
+
+    if (Get-Command -Name Get-KeyBinding -ErrorAction SilentlyContinue) {
+        try {
+            [string]$bindingName = [string](Get-KeyBinding -Action $Action -Default ([string]$Fallback))
+            if (-not [string]::IsNullOrWhiteSpace($bindingName)) {
+                $parsed = [System.Enum]::Parse([System.Windows.Forms.Keys], $bindingName, $true)
+                if ($null -ne $parsed) {
+                    return [System.Windows.Forms.Keys]$parsed
+                }
+            }
+        }
+        catch {
+        }
+    }
+
+    return [System.Windows.Forms.Keys]$Fallback
+}
+
 # ============================================================================
 # Initialize-Inventory - Reset inventory and register update callback
 # ============================================================================
@@ -60,6 +83,8 @@ function Update-Inventory {
     #>
     param($dt)
 
+    [System.Windows.Forms.Keys]$inventoryToggleKey = Resolve-InventoryKeyBinding -Action 'Inventory' -Fallback ([System.Windows.Forms.Keys]::E)
+
     # --- Hotbar Selection via Number Keys 1-9 ---
     if (Get-KeyDown ([System.Windows.Forms.Keys]::D1)) { $script:HotbarSelection = 0 }
     if (Get-KeyDown ([System.Windows.Forms.Keys]::D2)) { $script:HotbarSelection = 1 }
@@ -72,7 +97,7 @@ function Update-Inventory {
     if (Get-KeyDown ([System.Windows.Forms.Keys]::D9)) { $script:HotbarSelection = 8 }
 
     # --- Inventory Open/Close Toggle (E key) ---
-    if (Get-KeyDown ([System.Windows.Forms.Keys]::E)) {
+    if (Get-KeyDown $inventoryToggleKey) {
         $script:InventoryOpen = -not $script:InventoryOpen
     }
 }

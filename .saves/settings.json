@@ -3,7 +3,7 @@
                    "Name":  "voxel-rpg-settings",
                    "Version":  1
                },
-    "UpdatedAtUtc":  "2026-02-21T15:36:50.2800431Z",
+    "UpdatedAtUtc":  "2026-02-22T09:26:29.1147226Z",
     "Data":  {
                  "Video":  {
                                "Resolution":  "1024x768",
@@ -29,7 +29,7 @@
                                                   }
                               },
                  "Audio":  {
-                               "MasterVolume":  85,
+                               "MasterVolume":  90,
                                "MusicVolume":  70,
                                "EffectsVolume":  80,
                                "AudioBackendAvailable":  false

@@ -253,7 +253,7 @@ function Initialize-Items {
         Type        = 'Weapon'
         StackSize   = [int]1
         Value       = [int]10
-        Damage      = [int]4
+        Damage      = [int]5
         Durability  = [int]60
         AttackSpeed = [float]1.6
     })
@@ -264,7 +264,7 @@ function Initialize-Items {
         Type        = 'Weapon'
         StackSize   = [int]1
         Value       = [int]15
-        Damage      = [int]5
+        Damage      = [int]7
         Durability  = [int]132
         AttackSpeed = [float]1.6
     })
@@ -275,7 +275,7 @@ function Initialize-Items {
         Type        = 'Weapon'
         StackSize   = [int]1
         Value       = [int]50
-        Damage      = [int]6
+        Damage      = [int]10
         Durability  = [int]251
         AttackSpeed = [float]1.6
     })
@@ -338,7 +338,7 @@ function Initialize-Items {
         Type       = 'Consumable'
         StackSize  = [int]16
         Value      = [int]20
-        HealAmount = [int]20
+        HealAmount = [int]30
         ManaAmount = [int]0
         Effect     = ''
     })
@@ -350,7 +350,7 @@ function Initialize-Items {
         StackSize  = [int]16
         Value      = [int]20
         HealAmount = [int]0
-        ManaAmount = [int]20
+        ManaAmount = [int]30
         Effect     = ''
     })
 
@@ -360,7 +360,7 @@ function Initialize-Items {
         Type       = 'Consumable'
         StackSize  = [int]16
         Value      = [int]5
-        HealAmount = [int]5
+        HealAmount = [int]8
         ManaAmount = [int]0
         Effect     = ''
     })

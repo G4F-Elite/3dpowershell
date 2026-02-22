@@ -813,9 +813,11 @@ function Render-QuestTracker {
     [float]$scale = [float]$layout.Scale
     [float]$border = [float][Math]::Max(1.0, [Math]::Round($scale))
 
-    # List panel
-    Draw-HUDRect -X ([float]$layout.ListPanel.X) -Y ([float]$layout.ListPanel.Y) -Width ([float]$layout.ListPanel.Width) -Height ([float]$layout.ListPanel.Height) -Z $z -R ([float]$script:QuestTrackerTheme.Panel.R) -G ([float]$script:QuestTrackerTheme.Panel.G) -B ([float]$script:QuestTrackerTheme.Panel.B) -A ([float]$script:QuestTrackerTheme.Panel.A)
-    $drawCount++
+    Begin-HUDBatch
+    try {
+        # List panel
+        Draw-HUDRect -X ([float]$layout.ListPanel.X) -Y ([float]$layout.ListPanel.Y) -Width ([float]$layout.ListPanel.Width) -Height ([float]$layout.ListPanel.Height) -Z $z -R ([float]$script:QuestTrackerTheme.Panel.R) -G ([float]$script:QuestTrackerTheme.Panel.G) -B ([float]$script:QuestTrackerTheme.Panel.B) -A ([float]$script:QuestTrackerTheme.Panel.A)
+        $drawCount++
 
     Draw-HUDRect -X ([float]$layout.ListPanel.X) -Y ([float]$layout.ListPanel.Y) -Width ([float]$layout.ListPanel.Width) -Height $border -Z ($z - 0.0001) -R ([float]$script:QuestTrackerTheme.PanelBorder.R) -G ([float]$script:QuestTrackerTheme.PanelBorder.G) -B ([float]$script:QuestTrackerTheme.PanelBorder.B) -A ([float]$script:QuestTrackerTheme.PanelBorder.A)
     $drawCount++
@@ -931,16 +933,30 @@ function Render-QuestTracker {
         }
     }
 
-    $script:QuestTrackerLastRender = [PSCustomObject]@{
-        Mode = 'HUDOverlay'
-        Rendered = $true
-        Reason = 'Rendered'
-        DrawCallEstimate = [int]$drawCount
-        ListVisible = ($script:QuestTrackerReadModel.Quests.ActiveCount -ge 0)
-        DetailsVisible = [bool]$detailsVisible
-    }
+        $script:QuestTrackerLastRender = [PSCustomObject]@{
+            Mode = 'HUDOverlay'
+            Rendered = $true
+            Reason = 'Rendered'
+            DrawCallEstimate = [int]$drawCount
+            ListVisible = ($script:QuestTrackerReadModel.Quests.ActiveCount -ge 0)
+            DetailsVisible = [bool]$detailsVisible
+        }
 
-    $script:QuestTrackerReadModel.LastRender = $script:QuestTrackerLastRender
+        $script:QuestTrackerReadModel.LastRender = $script:QuestTrackerLastRender
+    }
+    catch {
+        $script:QuestTrackerLastRender = [PSCustomObject]@{
+            Mode = 'DrawFailed'
+            Rendered = $false
+            Reason = [string]$_.Exception.Message
+            DrawCallEstimate = [int]$drawCount
+            ListVisible = $false
+            DetailsVisible = $false
+        }
+    }
+    finally {
+        End-HUDBatch
+    }
 }
 
 function Get-QuestTrackerState {

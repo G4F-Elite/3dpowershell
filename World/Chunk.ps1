@@ -12,6 +12,8 @@ $script:CHUNK_SIZE_X = 16
 $script:CHUNK_SIZE_Y = 256
 $script:CHUNK_SIZE_Z = 16
 $script:CHUNK_BLOCK_COUNT = 65536  # 16 * 256 * 16
+$script:ChunkVerboseLogging = $true
+$script:ChunkTopologyRevision = [int64]0
 
 # --- Block ID to Name Mapping ---
 # Raw block names (human-readable)
@@ -42,6 +44,18 @@ $script:TransparentBlocks = @{
     [byte]0 = $true   # air
     [byte]7 = $true   # water (transparent)
 }
+$script:TransparentBlockLookup = [bool[]]::new(256)
+$script:TransparentBlockLookup[0] = $true
+$script:TransparentBlockLookup[7] = $true
+
+$script:ChunkReusableFaceIndexPattern = [uint32[]]@(
+    [uint32]0,
+    [uint32]1,
+    [uint32]2,
+    [uint32]0,
+    [uint32]2,
+    [uint32]3
+)
 
 # ============================================================================
 # Helper Functions
@@ -66,6 +80,50 @@ function Get-BlockName {
         return $name
     }
     return 'stone'
+}
+
+function Update-ChunkMaxSolidYFromTop {
+    <#
+    .SYNOPSIS
+        Recomputes Chunk.MaxSolidY by scanning downward from StartY.
+    .DESCRIPTION
+        Called only when removing a block at the previous MaxSolidY, which is
+        an infrequent path. Keeps hot read paths fast by maintaining MaxSolidY
+        incrementally during regular writes.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        $Chunk,
+        [Parameter(Mandatory = $true)]
+        [int]$StartY
+    )
+
+    $blocks = $Chunk.Blocks
+    if ($null -eq $blocks) {
+        $Chunk.MaxSolidY = [int]-1
+        return
+    }
+
+    if ($StartY -gt 255) { $StartY = 255 }
+    if ($StartY -lt 0) {
+        $Chunk.MaxSolidY = [int]-1
+        return
+    }
+
+    for ($scanY = $StartY; $scanY -ge 0; $scanY--) {
+        $yBase = $scanY * 256
+        for ($scanZ = 0; $scanZ -lt 16; $scanZ++) {
+            $zBase = $scanZ * 16
+            for ($scanX = 0; $scanX -lt 16; $scanX++) {
+                if ($blocks[$scanX + $zBase + $yBase] -ne [byte]0) {
+                    $Chunk.MaxSolidY = [int]$scanY
+                    return
+                }
+            }
+        }
+    }
+
+    $Chunk.MaxSolidY = [int]-1
 }
 
 # ============================================================================
@@ -95,6 +153,10 @@ function New-Chunk {
         ChunkZ = $ChunkZ
         Blocks = $blocks
         Mesh   = $null
+        MaxSolidY = [int]-1
+        MeshDirty = $true
+        MeshRevision = [int]0
+        MeshBuiltRevision = [int]-1
     }
 }
 
@@ -125,6 +187,10 @@ function Get-ChunkBlock {
     )
 
     if ($X -lt 0 -or $X -gt 15 -or $Y -lt 0 -or $Y -gt 255 -or $Z -lt 0 -or $Z -gt 15) {
+        return [byte]0
+    }
+
+    if ($Y -gt [int]$Chunk.MaxSolidY) {
         return [byte]0
     }
 
@@ -165,7 +231,36 @@ function Set-ChunkBlock {
     }
 
     $index = $X + $Z * 16 + $Y * 256
+    $currentId = $Chunk.Blocks[$index]
+    if ($currentId -eq $BlockId) {
+        return
+    }
+
     $Chunk.Blocks[$index] = $BlockId
+
+    if ($null -eq $Chunk.PSObject.Properties['MeshDirty']) {
+        $Chunk | Add-Member -MemberType NoteProperty -Name MeshDirty -Value $true
+    }
+    else {
+        $Chunk.MeshDirty = $true
+    }
+
+    if ($null -eq $Chunk.PSObject.Properties['MeshRevision']) {
+        $Chunk | Add-Member -MemberType NoteProperty -Name MeshRevision -Value ([int]1)
+    }
+    else {
+        $Chunk.MeshRevision = [int]$Chunk.MeshRevision + 1
+    }
+    $script:ChunkTopologyRevision = [int64]$script:ChunkTopologyRevision + 1
+
+    if ($BlockId -ne [byte]0) {
+        if ($Y -gt [int]$Chunk.MaxSolidY) {
+            $Chunk.MaxSolidY = [int]$Y
+        }
+    }
+    elseif ($Y -eq [int]$Chunk.MaxSolidY) {
+        Update-ChunkMaxSolidYFromTop -Chunk $Chunk -StartY ($Y - 1)
+    }
 }
 
 # ============================================================================
@@ -189,8 +284,28 @@ function Build-ChunkMesh {
     #>
     param(
         [Parameter(Mandatory = $true)]
-        $Chunk
+        $Chunk,
+        [switch]$Force
     )
+
+    if ($null -eq $Chunk.PSObject.Properties['MeshDirty']) {
+        $Chunk | Add-Member -MemberType NoteProperty -Name MeshDirty -Value $true
+    }
+    if ($null -eq $Chunk.PSObject.Properties['MeshRevision']) {
+        $Chunk | Add-Member -MemberType NoteProperty -Name MeshRevision -Value ([int]0)
+    }
+    if ($null -eq $Chunk.PSObject.Properties['MeshBuiltRevision']) {
+        $Chunk | Add-Member -MemberType NoteProperty -Name MeshBuiltRevision -Value ([int]-1)
+    }
+
+    if (
+        -not $Force -and
+        $null -ne $Chunk.Mesh -and
+        -not [bool]$Chunk.MeshDirty -and
+        [int]$Chunk.MeshBuiltRevision -eq [int]$Chunk.MeshRevision
+    ) {
+        return
+    }
 
     # Clean up existing mesh if rebuilding
     if ($null -ne $Chunk.Mesh) {
@@ -209,16 +324,29 @@ function Build-ChunkMesh {
     $blocks = $Chunk.Blocks
     $worldOffsetX = [float]($Chunk.ChunkX * 16)
     $worldOffsetZ = [float]($Chunk.ChunkZ * 16)
+    $transparentLookup = $script:TransparentBlockLookup
+    $uvCache = $script:UVCache
+    $blockNameCache = $script:BlockNameCache
 
-    $verts = [System.Collections.ArrayList]::new()
-    $indices = [System.Collections.ArrayList]::new()
+    [int]$maxY = 255
+    $maxY = [int]$Chunk.MaxSolidY
+    if ($maxY -lt 0) {
+        $Chunk.Mesh = $null
+        $Chunk.MeshDirty = $false
+        $Chunk.MeshBuiltRevision = [int]$Chunk.MeshRevision
+        return
+    }
+    if ($maxY -gt 255) { $maxY = 255 }
+
+    $verts = [System.Collections.Generic.List[float]]::new(131072)
+    $indices = [System.Collections.Generic.List[uint32]]::new(98304)
     [int]$vertexCount = 0
 
     # Face definitions: direction offsets, normal, and 4 vertex positions relative to block origin
     # Each block occupies (x, y, z) to (x+1, y+1, z+1) in local coords
     # Vertex order: bottom-left, bottom-right, top-right, top-left (CCW winding)
 
-    for ($y = 0; $y -lt 256; $y++) {
+    for ($y = 0; $y -le $maxY; $y++) {
         $yBase = $y * 256  # y * 16 * 16
         for ($z = 0; $z -lt 16; $z++) {
             $zBase = $z * 16
@@ -229,8 +357,8 @@ function Build-ChunkMesh {
                 # Skip air blocks
                 if ($blockId -eq 0) { continue }
 
-                $blockName = $script:BlockNameCache[$blockId]; if ($null -eq $blockName) { $blockName = Get-BlockName -BlockId $blockId; $script:BlockNameCache[$blockId] = $blockName }
-                $isTransparent = $script:TransparentBlocks.ContainsKey($blockId)
+                $blockName = $blockNameCache[$blockId]; if ($null -eq $blockName) { $blockName = Get-BlockName -BlockId $blockId; $blockNameCache[$blockId] = $blockName }
+                $isTransparent = $transparentLookup[[int]$blockId]
 
                 # World-space position of this block's origin corner
                 [float]$wx = $worldOffsetX + $x
@@ -239,11 +367,11 @@ function Build-ChunkMesh {
 
                 # --- Check +Y (top) face ---
                 $ny = $y + 1
-                if ($ny -gt 255) { $neighborId = [byte]0 }
+                if ($ny -gt $maxY) { $neighborId = [byte]0 }
                 else { $neighborId = $blocks[$x + $zBase + $ny * 256] }
-                $neighborTransparent = $script:TransparentBlocks.ContainsKey($neighborId)
+                $neighborTransparent = $transparentLookup[[int]$neighborId]
                 if ($neighborId -eq 0 -or ($neighborTransparent -and -not $isTransparent)) {
-                    $uv = $script:UVCache[$blockId][0]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'top'; $script:UVCache[$blockId][0] = $uv }
+                    $uv = $uvCache[$blockId][0]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'top'; $uvCache[$blockId][0] = $uv }
                     # top face: y+1 plane, normal (0,1,0)
                     [float]$fy = $wy + 1.0
                     [void]$verts.Add($wx); [void]$verts.Add($fy); [void]$verts.Add($wz + 1.0)
@@ -263,8 +391,12 @@ function Build-ChunkMesh {
                     [void]$verts.Add([float]0); [void]$verts.Add([float]1); [void]$verts.Add([float]0)
 
                     $b = [uint32]$vertexCount
-                    [void]$indices.Add($b); [void]$indices.Add($b + 1); [void]$indices.Add($b + 2)
-                    [void]$indices.Add($b); [void]$indices.Add($b + 2); [void]$indices.Add($b + 3)
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 1))
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add([uint32]($b + 3))
                     $vertexCount += 4
                 }
 
@@ -272,9 +404,9 @@ function Build-ChunkMesh {
                 $ny = $y - 1
                 if ($ny -lt 0) { $neighborId = [byte]0 }
                 else { $neighborId = $blocks[$x + $zBase + $ny * 256] }
-                $neighborTransparent = $script:TransparentBlocks.ContainsKey($neighborId)
+                $neighborTransparent = $transparentLookup[[int]$neighborId]
                 if ($neighborId -eq 0 -or ($neighborTransparent -and -not $isTransparent)) {
-                    $uv = $script:UVCache[$blockId][1]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'bottom'; $script:UVCache[$blockId][1] = $uv }
+                    $uv = $uvCache[$blockId][1]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'bottom'; $uvCache[$blockId][1] = $uv }
                     # bottom face: y plane, normal (0,-1,0)
                     [void]$verts.Add($wx); [void]$verts.Add($wy); [void]$verts.Add($wz)
                     [void]$verts.Add($uv.U0); [void]$verts.Add($uv.V1)
@@ -293,8 +425,12 @@ function Build-ChunkMesh {
                     [void]$verts.Add([float]0); [void]$verts.Add([float]-1); [void]$verts.Add([float]0)
 
                     $b = [uint32]$vertexCount
-                    [void]$indices.Add($b); [void]$indices.Add($b + 1); [void]$indices.Add($b + 2)
-                    [void]$indices.Add($b); [void]$indices.Add($b + 2); [void]$indices.Add($b + 3)
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 1))
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add([uint32]($b + 3))
                     $vertexCount += 4
                 }
 
@@ -302,9 +438,9 @@ function Build-ChunkMesh {
                 $nz = $z + 1
                 if ($nz -gt 15) { $neighborId = [byte]0 }
                 else { $neighborId = $blocks[$x + $nz * 16 + $yBase] }
-                $neighborTransparent = $script:TransparentBlocks.ContainsKey($neighborId)
+                $neighborTransparent = $transparentLookup[[int]$neighborId]
                 if ($neighborId -eq 0 -or ($neighborTransparent -and -not $isTransparent)) {
-                    $uv = $script:UVCache[$blockId][2]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'south'; $script:UVCache[$blockId][2] = $uv }
+                    $uv = $uvCache[$blockId][2]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'south'; $uvCache[$blockId][2] = $uv }
                     [float]$fz = $wz + 1.0
                     [void]$verts.Add($wx); [void]$verts.Add($wy); [void]$verts.Add($fz)
                     [void]$verts.Add($uv.U0); [void]$verts.Add($uv.V1)
@@ -323,8 +459,12 @@ function Build-ChunkMesh {
                     [void]$verts.Add([float]0); [void]$verts.Add([float]0); [void]$verts.Add([float]1)
 
                     $b = [uint32]$vertexCount
-                    [void]$indices.Add($b); [void]$indices.Add($b + 1); [void]$indices.Add($b + 2)
-                    [void]$indices.Add($b); [void]$indices.Add($b + 2); [void]$indices.Add($b + 3)
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 1))
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add([uint32]($b + 3))
                     $vertexCount += 4
                 }
 
@@ -332,9 +472,9 @@ function Build-ChunkMesh {
                 $nz = $z - 1
                 if ($nz -lt 0) { $neighborId = [byte]0 }
                 else { $neighborId = $blocks[$x + $nz * 16 + $yBase] }
-                $neighborTransparent = $script:TransparentBlocks.ContainsKey($neighborId)
+                $neighborTransparent = $transparentLookup[[int]$neighborId]
                 if ($neighborId -eq 0 -or ($neighborTransparent -and -not $isTransparent)) {
-                    $uv = $script:UVCache[$blockId][3]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'north'; $script:UVCache[$blockId][3] = $uv }
+                    $uv = $uvCache[$blockId][3]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'north'; $uvCache[$blockId][3] = $uv }
                     [void]$verts.Add($wx + 1.0); [void]$verts.Add($wy); [void]$verts.Add($wz)
                     [void]$verts.Add($uv.U0); [void]$verts.Add($uv.V1)
                     [void]$verts.Add([float]0); [void]$verts.Add([float]0); [void]$verts.Add([float]-1)
@@ -352,8 +492,12 @@ function Build-ChunkMesh {
                     [void]$verts.Add([float]0); [void]$verts.Add([float]0); [void]$verts.Add([float]-1)
 
                     $b = [uint32]$vertexCount
-                    [void]$indices.Add($b); [void]$indices.Add($b + 1); [void]$indices.Add($b + 2)
-                    [void]$indices.Add($b); [void]$indices.Add($b + 2); [void]$indices.Add($b + 3)
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 1))
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add([uint32]($b + 3))
                     $vertexCount += 4
                 }
 
@@ -361,9 +505,9 @@ function Build-ChunkMesh {
                 $nx = $x + 1
                 if ($nx -gt 15) { $neighborId = [byte]0 }
                 else { $neighborId = $blocks[$nx + $zBase + $yBase] }
-                $neighborTransparent = $script:TransparentBlocks.ContainsKey($neighborId)
+                $neighborTransparent = $transparentLookup[[int]$neighborId]
                 if ($neighborId -eq 0 -or ($neighborTransparent -and -not $isTransparent)) {
-                    $uv = $script:UVCache[$blockId][4]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'east'; $script:UVCache[$blockId][4] = $uv }
+                    $uv = $uvCache[$blockId][4]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'east'; $uvCache[$blockId][4] = $uv }
                     [float]$fx = $wx + 1.0
                     [void]$verts.Add($fx); [void]$verts.Add($wy); [void]$verts.Add($wz + 1.0)
                     [void]$verts.Add($uv.U0); [void]$verts.Add($uv.V1)
@@ -382,8 +526,12 @@ function Build-ChunkMesh {
                     [void]$verts.Add([float]1); [void]$verts.Add([float]0); [void]$verts.Add([float]0)
 
                     $b = [uint32]$vertexCount
-                    [void]$indices.Add($b); [void]$indices.Add($b + 1); [void]$indices.Add($b + 2)
-                    [void]$indices.Add($b); [void]$indices.Add($b + 2); [void]$indices.Add($b + 3)
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 1))
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add([uint32]($b + 3))
                     $vertexCount += 4
                 }
 
@@ -391,9 +539,9 @@ function Build-ChunkMesh {
                 $nx = $x - 1
                 if ($nx -lt 0) { $neighborId = [byte]0 }
                 else { $neighborId = $blocks[$nx + $zBase + $yBase] }
-                $neighborTransparent = $script:TransparentBlocks.ContainsKey($neighborId)
+                $neighborTransparent = $transparentLookup[[int]$neighborId]
                 if ($neighborId -eq 0 -or ($neighborTransparent -and -not $isTransparent)) {
-                    $uv = $script:UVCache[$blockId][5]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'west'; $script:UVCache[$blockId][5] = $uv }
+                    $uv = $uvCache[$blockId][5]; if ($null -eq $uv) { $uv = Get-BlockFaceUV -Atlas $atlas -BlockType $blockName -Face 'west'; $uvCache[$blockId][5] = $uv }
                     [void]$verts.Add($wx); [void]$verts.Add($wy); [void]$verts.Add($wz)
                     [void]$verts.Add($uv.U0); [void]$verts.Add($uv.V1)
                     [void]$verts.Add([float]-1); [void]$verts.Add([float]0); [void]$verts.Add([float]0)
@@ -411,8 +559,12 @@ function Build-ChunkMesh {
                     [void]$verts.Add([float]-1); [void]$verts.Add([float]0); [void]$verts.Add([float]0)
 
                     $b = [uint32]$vertexCount
-                    [void]$indices.Add($b); [void]$indices.Add($b + 1); [void]$indices.Add($b + 2)
-                    [void]$indices.Add($b); [void]$indices.Add($b + 2); [void]$indices.Add($b + 3)
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 1))
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add($b)
+                    [void]$indices.Add([uint32]($b + 2))
+                    [void]$indices.Add([uint32]($b + 3))
                     $vertexCount += 4
                 }
             }
@@ -422,20 +574,17 @@ function Build-ChunkMesh {
     # No visible faces  - no mesh needed
     if ($indices.Count -eq 0) {
         $Chunk.Mesh = $null
-        Write-Host "[Chunk] Chunk ($($Chunk.ChunkX), $($Chunk.ChunkZ))  - empty mesh (no visible faces)." -ForegroundColor DarkGray
+        $Chunk.MeshDirty = $false
+        $Chunk.MeshBuiltRevision = [int]$Chunk.MeshRevision
+        if ($script:ChunkVerboseLogging) {
+            Write-Host "[Chunk] Chunk ($($Chunk.ChunkX), $($Chunk.ChunkZ))  - empty mesh (no visible faces)." -ForegroundColor DarkGray
+        }
         return
     }
 
-    # Convert ArrayLists to typed arrays
-    [float[]]$vertexData = [float[]]::new($verts.Count)
-    for ($i = 0; $i -lt $verts.Count; $i++) {
-        $vertexData[$i] = [float]$verts[$i]
-    }
-
-    [uint32[]]$indexData = [uint32[]]::new($indices.Count)
-    for ($i = 0; $i -lt $indices.Count; $i++) {
-        $indexData[$i] = [uint32]$indices[$i]
-    }
+    # Convert typed lists to arrays (single allocation each)
+    [float[]]$vertexData = $verts.ToArray()
+    [uint32[]]$indexData = $indices.ToArray()
 
     $indexCount = $indexData.Length
 
@@ -456,7 +605,7 @@ function Build-ChunkMesh {
         [OpenGL.BufferTarget]::ArrayBuffer,
         $vertexByteSize,
         $vertexData,
-        [OpenGL.BufferUsage]::DynamicDraw
+        [OpenGL.BufferUsage]::StaticDraw
     )
 
     # --- Create EBO ---
@@ -470,7 +619,7 @@ function Build-ChunkMesh {
         [OpenGL.BufferTarget]::ElementArrayBuffer,
         $indexByteSize,
         $indexData,
-        [OpenGL.BufferUsage]::DynamicDraw
+        [OpenGL.BufferUsage]::StaticDraw
     )
 
     # --- Set up vertex attribute pointers ---
@@ -519,9 +668,13 @@ function Build-ChunkMesh {
         EBO        = $ebo
         IndexCount = $indexCount
     }
+    $Chunk.MeshDirty = $false
+    $Chunk.MeshBuiltRevision = [int]$Chunk.MeshRevision
 
-    $faceCount = [int]($indexCount / 6)
-    Write-Host "[Chunk] Chunk ($($Chunk.ChunkX), $($Chunk.ChunkZ)) mesh built  - $faceCount faces, $indexCount indices, VAO: $vao." -ForegroundColor Green
+    if ($script:ChunkVerboseLogging) {
+        $faceCount = [int]($indexCount / 6)
+        Write-Host "[Chunk] Chunk ($($Chunk.ChunkX), $($Chunk.ChunkZ)) mesh built  - $faceCount faces, $indexCount indices, VAO: $vao." -ForegroundColor Green
+    }
 }
 
 # ============================================================================
@@ -549,7 +702,6 @@ function Draw-ChunkMesh {
         [OpenGL.DrawElementsType]::UnsignedInt,
         [IntPtr]::Zero
     )
-    [OpenGL.Gl]::BindVertexArray([uint32]0)
 }
 
 function Remove-ChunkMesh {
@@ -579,6 +731,12 @@ function Remove-ChunkMesh {
         [OpenGL.Gl]::DeleteBuffers($eboArr)
     }
 
-    Write-Host "[Chunk] Chunk ($($Chunk.ChunkX), $($Chunk.ChunkZ)) mesh removed (VAO: $($Chunk.Mesh.VAO))." -ForegroundColor DarkGray
+    if ($script:ChunkVerboseLogging) {
+        Write-Host "[Chunk] Chunk ($($Chunk.ChunkX), $($Chunk.ChunkZ)) mesh removed (VAO: $($Chunk.Mesh.VAO))." -ForegroundColor DarkGray
+    }
     $Chunk.Mesh = $null
+}
+
+function Get-ChunkTopologyRevision {
+    return [int64]$script:ChunkTopologyRevision
 }

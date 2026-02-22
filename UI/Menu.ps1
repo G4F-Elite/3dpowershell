@@ -1446,6 +1446,17 @@ function Update-Menu {
 
     Update-MenuTransition -DeltaSeconds $step
 
+    # --- Fast path: skip expensive model rebuild when menu is hidden ---
+    if ($script:MenuCurrentView -eq 'Hidden' -and -not [bool]$script:MenuTransition.Active) {
+        if ($script:MenuGameplayStarted) {
+            [bool]$escDown = Get-MenuKeyDownInternal -Key ([System.Windows.Forms.Keys]::Escape)
+            if ($escDown) {
+                Invoke-MenuAction -Action 'OpenPause' -Source 'KeyboardEscape' | Out-Null
+            }
+        }
+        return
+    }
+
     $mouse = Get-MenuMousePositionInternal
     [float]$cursorX = [float]$mouse.X
     [float]$cursorY = [float]$mouse.Y
@@ -1630,6 +1641,11 @@ function Render-Menu {
             TransitionActive = [bool]$script:MenuTransition.Active
             TransitionProgress = [float]$script:MenuTransition.Progress
         }
+        return
+    }
+
+    # --- Fast path: skip all rendering work when menu is hidden and not transitioning ---
+    if ($script:MenuCurrentView -eq 'Hidden' -and -not [bool]$script:MenuTransition.Active) {
         return
     }
 

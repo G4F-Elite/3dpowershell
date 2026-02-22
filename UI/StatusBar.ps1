@@ -452,6 +452,7 @@ function Render-StatusBar {
     [int]$drawCount = [int]0
     [bool]$warningVisible = $false
 
+    Begin-HUDBatch
     try {
         Draw-HUDRect -X $panelX -Y $panelY -Width $panelW -Height $panelH -Z $z -R 0.03 -G 0.04 -B 0.06 -A 0.72
         $drawCount++
@@ -521,6 +522,9 @@ function Render-StatusBar {
             LowHealthWarningVisible = $false
             DrawCallEstimate = [int]$drawCount
         }
+    }
+    finally {
+        End-HUDBatch
     }
 }
 

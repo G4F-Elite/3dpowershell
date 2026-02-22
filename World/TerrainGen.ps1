@@ -124,13 +124,12 @@ function Perlin-GradDot {
 # ============================================================================
 function Get-PerlinNoise2D {
     param(
-        [Parameter(Mandatory=$true)]
         [double]$X,
-        [Parameter(Mandatory=$true)]
         [double]$Y
     )
 
     $perm = $script:PerlinPerm
+    $grads = $script:PerlinGradients2D
 
     # Grid cell coordinates (handle negative coords correctly)
     [int]$xi = [System.Math]::Floor($X)
@@ -144,9 +143,9 @@ function Get-PerlinNoise2D {
     $xi = $xi -band 255
     $yi = $yi -band 255
 
-    # Fade curves for interpolation weights
-    [double]$u = Perlin-Fade $xf
-    [double]$v = Perlin-Fade $yf
+    # Fade curves for interpolation weights (inlined Perlin-Fade)
+    [double]$u = ($xf * $xf * $xf * ($xf * ($xf * 6.0 - 15.0) + 10.0))
+    [double]$v = ($yf * $yf * $yf * ($yf * ($yf * 6.0 - 15.0) + 10.0))
 
     # Hash coordinates of the 4 corners of the cell
     [int]$aa = $perm[$perm[$xi]     + $yi]
@@ -154,16 +153,26 @@ function Get-PerlinNoise2D {
     [int]$ba = $perm[$perm[$xi + 1] + $yi]
     [int]$bb = $perm[$perm[$xi + 1] + $yi + 1]
 
-    # Gradient dot products at each corner
-    [double]$g00 = Perlin-GradDot $aa  $xf        $yf
-    [double]$g10 = Perlin-GradDot $ba ($xf - 1.0) $yf
-    [double]$g01 = Perlin-GradDot $ab  $xf       ($yf - 1.0)
-    [double]$g11 = Perlin-GradDot $bb ($xf - 1.0) ($yf - 1.0)
+    # Gradient dot products at each corner (inlined Perlin-GradDot)
+    $g = $grads[$aa -band 7]
+    [double]$g00 = ($g[0] * $xf + $g[1] * $yf)
 
-    # Bilinear interpolation using fade curves
-    [double]$x0 = Perlin-Lerp $g00 $g10 $u
-    [double]$x1 = Perlin-Lerp $g01 $g11 $u
-    [double]$result = Perlin-Lerp $x0 $x1 $v
+    [double]$xfm1 = ($xf - 1.0)
+    [double]$yfm1 = ($yf - 1.0)
+
+    $g = $grads[$ba -band 7]
+    [double]$g10 = ($g[0] * $xfm1 + $g[1] * $yf)
+
+    $g = $grads[$ab -band 7]
+    [double]$g01 = ($g[0] * $xf + $g[1] * $yfm1)
+
+    $g = $grads[$bb -band 7]
+    [double]$g11 = ($g[0] * $xfm1 + $g[1] * $yfm1)
+
+    # Bilinear interpolation using fade curves (inlined Perlin-Lerp)
+    [double]$x0 = ($g00 + $u * ($g10 - $g00))
+    [double]$x1 = ($g01 + $u * ($g11 - $g01))
+    [double]$result = ($x0 + $v * ($x1 - $x0))
 
     return $result
 }
@@ -185,9 +194,7 @@ function Get-PerlinNoise2D {
 # ============================================================================
 function Get-FractalNoise2D {
     param(
-        [Parameter(Mandatory=$true)]
         [double]$X,
-        [Parameter(Mandatory=$true)]
         [double]$Y,
         [int]$Octaves = $script:TerrainOctaves,
         [double]$Lacunarity = $script:TerrainLacunarity,
@@ -230,12 +237,8 @@ function Get-FractalNoise2D {
 # ============================================================================
 function Get-NoiseHeight {
     param(
-        [Parameter(Mandatory=$true)]
         [double]$X,
-        [Parameter(Mandatory=$true)]
-        [double]$Z,
-        [Parameter(Mandatory=$true)]
-        [int]$Seed
+        [double]$Z
     )
 
     # Initialize (or verify) permutation table for this seed
@@ -245,8 +248,66 @@ function Get-NoiseHeight {
     [double]$nx = $X * $script:TerrainScale
     [double]$nz = $Z * $script:TerrainScale
 
-    # Get multi-octave noise value [-1, 1]
-    [double]$noise = Get-FractalNoise2D -X $nx -Y $nz
+    # Inline fractal noise loop (avoids extra function call per column)
+    $perm = $script:PerlinPerm
+    $grads = $script:PerlinGradients2D
+    [int]$octaves = $script:TerrainOctaves
+    [double]$lacunarity = $script:TerrainLacunarity
+    [double]$persistence = $script:TerrainPersistence
+
+    [double]$total = 0.0
+    [double]$frequency = 1.0
+    [double]$amplitude = 1.0
+    [double]$maxAmplitude = 0.0
+
+    for ($o = 0; $o -lt $octaves; $o++) {
+        [double]$px = $nx * $frequency
+        [double]$py = $nz * $frequency
+
+        [int]$xi = [System.Math]::Floor($px)
+        [int]$yi = [System.Math]::Floor($py)
+        [double]$xf = $px - $xi
+        [double]$yf = $py - $yi
+        $xi = $xi -band 255
+        $yi = $yi -band 255
+
+        [double]$u = ($xf * $xf * $xf * ($xf * ($xf * 6.0 - 15.0) + 10.0))
+        [double]$v = ($yf * $yf * $yf * ($yf * ($yf * 6.0 - 15.0) + 10.0))
+
+        [int]$aa = $perm[$perm[$xi] + $yi]
+        [int]$ab = $perm[$perm[$xi] + $yi + 1]
+        [int]$ba = $perm[$perm[$xi + 1] + $yi]
+        [int]$bb = $perm[$perm[$xi + 1] + $yi + 1]
+
+        $g = $grads[$aa -band 7]
+        [double]$g00 = ($g[0] * $xf + $g[1] * $yf)
+
+        [double]$xfm1 = ($xf - 1.0)
+        [double]$yfm1 = ($yf - 1.0)
+
+        $g = $grads[$ba -band 7]
+        [double]$g10 = ($g[0] * $xfm1 + $g[1] * $yf)
+
+        $g = $grads[$ab -band 7]
+        [double]$g01 = ($g[0] * $xf + $g[1] * $yfm1)
+
+        $g = $grads[$bb -band 7]
+        [double]$g11 = ($g[0] * $xfm1 + $g[1] * $yfm1)
+
+        [double]$x0 = ($g00 + $u * ($g10 - $g00))
+        [double]$x1 = ($g01 + $u * ($g11 - $g01))
+        [double]$octaveNoise = ($x0 + $v * ($x1 - $x0))
+
+        $total += ($octaveNoise * $amplitude)
+        $maxAmplitude += $amplitude
+        $amplitude *= $persistence
+        $frequency *= $lacunarity
+    }
+
+    [double]$noise = 0.0
+    if ($maxAmplitude -gt 0.0) {
+        $noise = $total / $maxAmplitude
+    }
 
     # Map noise to height range: base +/- amplitude
     [double]$height = $script:TerrainBaseHeight + ($noise * $script:TerrainAmplitude)
@@ -257,4 +318,95 @@ function Get-NoiseHeight {
 
     # Return as integer
     return [int][System.Math]::Floor($height)
+}
+
+function Get-ChunkHeightMap16x16 {
+    param(
+        [int]$BaseX,
+        [int]$BaseZ
+    )
+
+    $perm = $script:PerlinPerm
+    $grads = $script:PerlinGradients2D
+
+    [int]$octaves = $script:TerrainOctaves
+    [double]$lacunarity = $script:TerrainLacunarity
+    [double]$persistence = $script:TerrainPersistence
+    [double]$scale = $script:TerrainScale
+
+    [double]$baseHeight = $script:TerrainBaseHeight
+    [double]$amplitudeScale = $script:TerrainAmplitude
+    [double]$minHeight = $script:TerrainMinHeight
+    [double]$maxHeight = $script:TerrainMaxHeight
+
+    [int[]]$heights = [int[]]::new(256)
+
+    for ($x = 0; $x -lt 16; $x++) {
+        [double]$nxBase = ($BaseX + $x) * $scale
+        for ($z = 0; $z -lt 16; $z++) {
+            [double]$nzBase = ($BaseZ + $z) * $scale
+
+            [double]$total = 0.0
+            [double]$frequency = 1.0
+            [double]$amplitude = 1.0
+            [double]$maxAmplitude = 0.0
+
+            for ($o = 0; $o -lt $octaves; $o++) {
+                [double]$px = $nxBase * $frequency
+                [double]$py = $nzBase * $frequency
+
+                [int]$xi = [System.Math]::Floor($px)
+                [int]$yi = [System.Math]::Floor($py)
+                [double]$xf = $px - $xi
+                [double]$yf = $py - $yi
+                $xi = $xi -band 255
+                $yi = $yi -band 255
+
+                [double]$u = ($xf * $xf * $xf * ($xf * ($xf * 6.0 - 15.0) + 10.0))
+                [double]$v = ($yf * $yf * $yf * ($yf * ($yf * 6.0 - 15.0) + 10.0))
+
+                [int]$aa = $perm[$perm[$xi] + $yi]
+                [int]$ab = $perm[$perm[$xi] + $yi + 1]
+                [int]$ba = $perm[$perm[$xi + 1] + $yi]
+                [int]$bb = $perm[$perm[$xi + 1] + $yi + 1]
+
+                $g = $grads[$aa -band 7]
+                [double]$g00 = ($g[0] * $xf + $g[1] * $yf)
+
+                [double]$xfm1 = ($xf - 1.0)
+                [double]$yfm1 = ($yf - 1.0)
+
+                $g = $grads[$ba -band 7]
+                [double]$g10 = ($g[0] * $xfm1 + $g[1] * $yf)
+
+                $g = $grads[$ab -band 7]
+                [double]$g01 = ($g[0] * $xf + $g[1] * $yfm1)
+
+                $g = $grads[$bb -band 7]
+                [double]$g11 = ($g[0] * $xfm1 + $g[1] * $yfm1)
+
+                [double]$x0 = ($g00 + $u * ($g10 - $g00))
+                [double]$x1 = ($g01 + $u * ($g11 - $g01))
+                [double]$octaveNoise = ($x0 + $v * ($x1 - $x0))
+
+                $total += ($octaveNoise * $amplitude)
+                $maxAmplitude += $amplitude
+                $amplitude *= $persistence
+                $frequency *= $lacunarity
+            }
+
+            [double]$noise = 0.0
+            if ($maxAmplitude -gt 0.0) {
+                $noise = $total / $maxAmplitude
+            }
+
+            [double]$height = $baseHeight + ($noise * $amplitudeScale)
+            if ($height -lt $minHeight) { $height = $minHeight }
+            if ($height -gt $maxHeight) { $height = $maxHeight }
+
+            $heights[$x + $z * 16] = [int][System.Math]::Floor($height)
+        }
+    }
+
+    return ,$heights
 }

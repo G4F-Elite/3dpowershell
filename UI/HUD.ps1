@@ -43,8 +43,14 @@ $script:HUDLayoutCacheWidth = [int]0
 $script:HUDLayoutCacheHeight = [int]0
 
 $script:HUDBatchActive = $false
+$script:HUDBatchProgram = [uint32]0
+$script:HUDBatchAlphaLoc = [int]-1
 
 $script:HUDCmdCache = @{}
+$script:HUDRectVertexScratch = [float[]]::new(48)
+$script:HUDUniformLocationCache = @{}
+$script:HUDViewIdentity = $null
+$script:HUDModelIdentity = $null
 
 $script:HUDTheme = [PSCustomObject]@{
     PanelColor       = [PSCustomObject]@{ R = [float]0.08; G = [float]0.10; B = [float]0.14; A = [float]0.72 }
@@ -365,6 +371,51 @@ function Build-HUDRectVertices {
     )
 }
 
+function Fill-HUDRectVertexScratch {
+    param(
+        [float]$X,
+        [float]$Y,
+        [float]$Width,
+        [float]$Height,
+        [float]$Z
+    )
+
+    [float]$x0 = [float]$X
+    [float]$y0 = [float]$Y
+    [float]$x1 = [float]($X + $Width)
+    [float]$y1 = [float]($Y + $Height)
+
+    $v = $script:HUDRectVertexScratch
+
+    # tri 1
+    $v[0] = $x0; $v[1] = $y0; $v[2] = $Z; $v[3] = 0.0; $v[4] = 0.0; $v[5] = 0.0; $v[6] = 0.0; $v[7] = 1.0
+    $v[8] = $x1; $v[9] = $y0; $v[10] = $Z; $v[11] = 1.0; $v[12] = 0.0; $v[13] = 0.0; $v[14] = 0.0; $v[15] = 1.0
+    $v[16] = $x1; $v[17] = $y1; $v[18] = $Z; $v[19] = 1.0; $v[20] = 1.0; $v[21] = 0.0; $v[22] = 0.0; $v[23] = 1.0
+
+    # tri 2
+    $v[24] = $x0; $v[25] = $y0; $v[26] = $Z; $v[27] = 0.0; $v[28] = 0.0; $v[29] = 0.0; $v[30] = 0.0; $v[31] = 1.0
+    $v[32] = $x1; $v[33] = $y1; $v[34] = $Z; $v[35] = 1.0; $v[36] = 1.0; $v[37] = 0.0; $v[38] = 0.0; $v[39] = 1.0
+    $v[40] = $x0; $v[41] = $y1; $v[42] = $Z; $v[43] = 0.0; $v[44] = 1.0; $v[45] = 0.0; $v[46] = 0.0; $v[47] = 1.0
+
+    return $v
+}
+
+function Get-HUDCachedUniformLocation {
+    param(
+        [uint32]$Program,
+        [string]$Name
+    )
+
+    [string]$key = "${Program}_${Name}"
+    if ($script:HUDUniformLocationCache.ContainsKey($key)) {
+        return [int]$script:HUDUniformLocationCache[$key]
+    }
+
+    [int]$loc = [OpenGL.Gl]::GetUniformLocation($Program, $Name)
+    $script:HUDUniformLocationCache[$key] = [int]$loc
+    return [int]$loc
+}
+
 function Set-HUDProjectionState {
     param(
         [float]$WindowWidth,
@@ -374,15 +425,23 @@ function Set-HUDProjectionState {
     $program = Get-DefaultShaderProgram
     Use-ShaderProgram -Program $program
 
-    $proj = Matrix4-Orthographic -Left 0.0 -Right $WindowWidth -Bottom $WindowHeight -Top 0.0 -Near -1.0 -Far 1.0
-    $view = Matrix4-Identity
-    $model = Matrix4-Identity
+    if ($null -eq $script:HUDProjection -or $script:HUDLastWindowWidth -ne [int]$WindowWidth -or $script:HUDLastWindowHeight -ne [int]$WindowHeight) {
+        $script:HUDProjection = Matrix4-Orthographic -Left 0.0 -Right $WindowWidth -Bottom $WindowHeight -Top 0.0 -Near -1.0 -Far 1.0
+    }
+    if ($null -eq $script:HUDViewIdentity) {
+        $script:HUDViewIdentity = Matrix4-Identity
+    }
+    if ($null -eq $script:HUDModelIdentity) {
+        $script:HUDModelIdentity = Matrix4-Identity
+    }
+
+    $proj = $script:HUDProjection
+    $view = $script:HUDViewIdentity
+    $model = $script:HUDModelIdentity
 
     Set-ShaderUniformMatrix4 -Program $program -Name 'uProjection' -Matrix $proj
     Set-ShaderUniformMatrix4 -Program $program -Name 'uView' -Matrix $view
     Set-ShaderUniformMatrix4 -Program $program -Name 'uModel' -Matrix $model
-
-    $script:HUDProjection = $proj
 }
 
 function Begin-HUDBatch {
@@ -394,12 +453,16 @@ function Begin-HUDBatch {
     Set-ShaderUniform1i -Program $program -Name 'uTexture' -Value 0
     [OpenGL.Gl]::BindVertexArray($script:HUDQuadVAO)
     [OpenGL.Gl]::BindBuffer([OpenGL.BufferTarget]::ArrayBuffer, $script:HUDQuadVBO)
+    $script:HUDBatchProgram = [uint32]$program
+    $script:HUDBatchAlphaLoc = Get-HUDCachedUniformLocation -Program $program -Name 'uHudAlpha'
     $script:HUDBatchActive = $true
 }
 
 function End-HUDBatch {
     if (-not $script:HUDBatchActive) { return }
     [OpenGL.Gl]::BindVertexArray([uint32]0)
+    $script:HUDBatchProgram = [uint32]0
+    $script:HUDBatchAlphaLoc = [int]-1
     $script:HUDBatchActive = $false
 }
 
@@ -419,32 +482,35 @@ function Draw-HUDRect {
     if ($Width -le 0.0 -or $Height -le 0.0) { return }
     if ($A -le 0.0) { return }
 
-    if (-not $script:HUDBatchActive) {
-        $program = Get-DefaultShaderProgram
+    if ($script:HUDBatchActive) {
+        [uint32]$program = [uint32]$script:HUDBatchProgram
+        [int]$alphaLoc = [int]$script:HUDBatchAlphaLoc
+    }
+    else {
+        [uint32]$program = [uint32](Get-DefaultShaderProgram)
         Use-ShaderProgram -Program $program
         $atlas = Get-BlockTextureAtlas
         Bind-Texture -Handle $atlas.Handle -Unit 0
         Set-ShaderUniform1i -Program $program -Name 'uTexture' -Value 0
         [OpenGL.Gl]::BindVertexArray($script:HUDQuadVAO)
         [OpenGL.Gl]::BindBuffer([OpenGL.BufferTarget]::ArrayBuffer, $script:HUDQuadVBO)
+        [int]$alphaLoc = Get-HUDCachedUniformLocation -Program $program -Name 'uHudAlpha'
     }
 
-    $program = Get-DefaultShaderProgram
     Set-ShaderUniform3f -Program $program -Name 'uLightDir' -X $R -Y $G -Z $B
     Set-ShaderUniform1f -Program $program -Name 'uAmbient' -Value ([float]0.0)
 
-    $alphaLoc = [OpenGL.Gl]::GetUniformLocation($program, 'uHudAlpha')
     if ($alphaLoc -ge 0) {
         [OpenGL.Gl]::Uniform1($alphaLoc, [float]$A)
     }
 
-    [float[]]$verts = Build-HUDRectVertices -X $X -Y $Y -Width $Width -Height $Height -Z $Z
+    [float[]]$verts = Fill-HUDRectVertexScratch -X $X -Y $Y -Width $Width -Height $Height -Z $Z
 
-    [OpenGL.Gl]::BufferData(
+    [OpenGL.Gl]::BufferSubData(
         [OpenGL.BufferTarget]::ArrayBuffer,
+        [IntPtr]::Zero,
         [uint32]($verts.Length * 4),
-        $verts,
-        [OpenGL.BufferUsage]::DynamicDraw
+        $verts
     )
 
     [OpenGL.Gl]::DrawArrays([OpenGL.PrimitiveType]::Triangles, 0, 6)
@@ -837,7 +903,7 @@ function Render-HUD {
     $program = Get-DefaultShaderProgram
     Set-ShaderUniform1f -Program $program -Name 'uAmbient' -Value ([float]0.3)
 
-    $alphaLoc = [OpenGL.Gl]::GetUniformLocation($program, 'uHudAlpha')
+    $alphaLoc = Get-HUDCachedUniformLocation -Program $program -Name 'uHudAlpha'
     if ($alphaLoc -ge 0) {
         [OpenGL.Gl]::Uniform1($alphaLoc, [float]1.0)
     }
